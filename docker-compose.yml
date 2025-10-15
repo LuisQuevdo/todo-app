@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  # 1. SERVICIO DE BASE DE DATOS (PostgreSQL)
+  db:
+    image: postgres:15-alpine # Imagen base ligera
+    environment:
+      # Variables de entorno que usa Postgres para la configuración inicial
+      POSTGRES_USER: ${DB_USER:-user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
+      POSTGRES_DB: ${DB_NAME:-todo_db}
+    ports:
+      # Puerto de la DB expuesto (opcional, pero útil)
+      - "5432:5432"
+    volumes:
+      # Volumen nombrado para asegurar que los datos persistan
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      # Check de salud: confirma que la DB está lista para aceptar conexiones
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      
+  # 2. SERVICIO DE BACKEND (Node.js API)
+  backend:
+    build:
+      context: ./backend # Construye la imagen desde el Dockerfile en la carpeta 'backend/'
+    ports:
+      - "3000:3000" # Puerto de la API expuesto
+    environment: 
+      # Configuración de conexión. DB_HOST apunta al nombre del servicio 'db'.
+      DB_HOST: db 
+      DB_USER: ${DB_USER:-user}
+      DB_PASSWORD: ${DB_PASSWORD:-password}
+      DB_NAME: ${DB_NAME:-todo_db}
+      DB_PORT: 5432
+    volumes:
+      # Bind mount para desarrollo (si cambias código en /backend, se actualiza el contenedor)
+      - ./backend:/app 
+    depends_on:
+      db:
+        # El backend espera a que la DB esté completamente lista (healthy) antes de arrancar
+        condition: service_healthy 
+
+  # 3. SERVICIO DE FRONTEND (Nginx)
+  frontend:
+    build:
+      context: ./frontend # Construye la imagen desde la carpeta 'frontend/'
+    ports:
+      - "8080:80" # Puerto para acceder a la aplicación en el navegador
+    depends_on:
+      - backend # El frontend espera a que el backend esté arriba
+      
+# Declaración de Volúmenes Nombrados
+volumes:
+  db_data: # Define el volumen de persistencia
