@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TODO App Dockerizada</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Gestión de Tareas (TODO App)</h1>
+
+        <form id="task-form">
+            <input type="text" id="task-input" placeholder="Escribe una nueva tarea aquí..." required>
+            <button type="submit">Agregar Tarea</button>
+        </form>
+
+        <ul id="task-list">
+        </ul>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://localhost:3000/tasks';
+        
+        const taskList = document.getElementById('task-list');
+        const taskForm = document.getElementById('task-form');
+        const taskInput = document.getElementById('task-input');
+
+        function renderTask(task) {
+            const li = document.createElement('li');
+            li.setAttribute('data-id', task.id);
+            if (task.completed) {
+                li.classList.add('completed');
+            }
+
+            li.addEventListener('click', () => toggleTask(task.id, !task.completed));
+
+            li.innerHTML = `
+                <span>${task.title}</span>
+                <button class="delete-btn" onclick="event.stopPropagation(); deleteTask(${task.id})">
+                    Eliminar
+                </button>
+            `;
+            taskList.appendChild(li);
+        }
+
+        async function loadTasks() {
+            try {
+                const response = await fetch(API_BASE_URL);
+                if (!response.ok) throw new Error('Error de conexión con el API.');
+
+                const tasks = await response.json();
+                taskList.innerHTML = '';
+                
+                tasks.forEach(renderTask);
+            } catch (error) {
+                console.error('Error al cargar las tareas:', error);
+                taskList.innerHTML = '<li class="error-msg">No se pudo conectar con el backend (http://localhost:3000).</li>';
+            }
+        }
+
+        taskForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const title = taskInput.value.trim();
+            if (!title) return;
+
+            try {
+                const response = await fetch(API_BASE_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title: title })
+                });
+                if (!response.ok) throw new Error('Fallo al crear la tarea.');
+
+                taskInput.value = ''; 
+                loadTasks();
+            } catch (error) {
+                console.error('Error al agregar tarea:', error);
+            }
+        });
+
+        async function toggleTask(id, completed) {
+            try {
+                const response = await fetch(`${API_BASE_URL}/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ completed: completed })
+                });
+                if (!response.ok) throw new Error('Fallo al actualizar el estado.');
+                
+                loadTasks();
+            } catch (error) {
+                console.error('Error al cambiar el estado:', error);
+            }
+        }
+
+        async function deleteTask(id) {
+            if (!confirm('¿Estás seguro de que quieres eliminar esta tarea?')) return;
+            try {
+                const response = await fetch(`${API_BASE_URL}/${id}`, {
+                    method: 'DELETE'
+                });
+                if (!response.ok) throw new Error('Fallo al eliminar la tarea.');
+
+                loadTasks();
+            } catch (error) {
+                console.error('Error al eliminar tarea:', error);
+            }
+        }
+        
+        loadTasks();
+    </script>
+</body>
+</html>
